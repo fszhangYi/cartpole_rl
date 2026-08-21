@@ -6,7 +6,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [docs/ALGORITHMS.md](docs/ALGORITHMS.md) | 各算法详解、已实现/未实现说明 |
+| [docs/ALGORITHMS.md](docs/ALGORITHMS.md) | 零基础算法详解（逐算法） |
 | [docs/CartPole_PPO_手把手教程.md](docs/CartPole_PPO_手把手教程.md) | CartPole + PPO 手把手教程 |
 | [docs/MuJoCo_mjviser_安装教程.md](docs/MuJoCo_mjviser_安装教程.md) | MuJoCo / mjviser 环境安装 |
 

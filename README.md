@@ -2,7 +2,7 @@
 
 经典倒立摆 / 平衡车：物理 **MuJoCo**，算法由 **`config.yaml`** 选择（**PPO** 或 **Q-Learning**），可视化 **mjviser**。
 
-**详细教程：** [CartPole_PPO_手把手教程.md](./CartPole_PPO_手把手教程.md)
+**算法清单（已实现 / 未实现原因）：** [ALGORITHMS.md](./ALGORITHMS.md)
 
 ## 环境
 

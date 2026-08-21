@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""按配置加载 PPO / Q-Learning 权重并评估（复用 Agent.select_action）。"""
+"""按配置评估（离散/连续动作均走 select_action）。"""
 
 from __future__ import annotations
 
@@ -9,8 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from algorithms import create_agent
-from config_loader import ROOT, load_config, normalize_algorithm, resolve_checkpoint_path
-from env import CartPoleMuJoCoEnv
+from config_loader import ROOT, load_config, needs_continuous_action, normalize_algorithm, resolve_checkpoint_path
 from train import make_env
 
 
@@ -21,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--checkpoint", type=Path, default=None)
     p.add_argument("--episodes", type=int, default=20)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--greedy", action="store_true", help="关闭探索（推荐验收）")
+    p.add_argument("--greedy", action="store_true")
     return p.parse_args()
 
 
@@ -32,7 +31,8 @@ def main() -> None:
         cfg["algorithm"] = normalize_algorithm(args.algorithm)
 
     env = make_env(cfg)
-    agent = create_agent(cfg, obs_dim=4, act_dim=2)
+    act_dim = int(np.prod(env.action_space.shape)) if needs_continuous_action(cfg["algorithm"]) else int(env.action_space.n)
+    agent = create_agent(cfg, obs_dim=4, act_dim=act_dim)
 
     ckpt = args.checkpoint or resolve_checkpoint_path(cfg, "best")
     if not Path(ckpt).exists():

@@ -1,0 +1,12 @@
+[
+  {
+    "step": 2000,
+    "avg_return_100": 5.11,
+    "epsilon": 0.9804
+  },
+  {
+    "step": 2500,
+    "avg_return_100": 5.97,
+    "epsilon": 0.9755
+  }
+]

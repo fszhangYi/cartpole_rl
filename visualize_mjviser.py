@@ -7,11 +7,12 @@ import argparse
 from pathlib import Path
 
 import mujoco
+import numpy as np
 import viser
 from mjviser import Viewer
 
 from algorithms import create_agent
-from config_loader import ROOT, load_config, normalize_algorithm, resolve_checkpoint_path
+from config_loader import ROOT, load_config, needs_continuous_action, normalize_algorithm, resolve_checkpoint_path
 from env import DEFAULT_XML, CartPoleMuJoCoEnv
 from train import make_env
 
@@ -41,11 +42,9 @@ def main() -> None:
     # 可视化加长单局，复用 make_env 的阈值后再覆盖 max steps
     env = make_env(cfg)
     env.max_episode_steps = 100_000
-    # 若 XML 路径需固定
-    if env.xml_path != DEFAULT_XML:
-        pass
 
-    agent = create_agent(cfg, obs_dim=4, act_dim=2)
+    act_dim = int(np.prod(env.action_space.shape)) if needs_continuous_action(cfg["algorithm"]) else int(env.action_space.n)
+    agent = create_agent(cfg, obs_dim=4, act_dim=act_dim)
     ckpt = args.checkpoint or resolve_checkpoint_path(cfg, "best")
     if Path(ckpt).exists():
         agent.load(str(ckpt))

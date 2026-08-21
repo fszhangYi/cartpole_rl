@@ -1,5 +1,8 @@
-# 强化学习算法开关：ppo | q_learning
-# 修改本项即可切换算法；也可用命令行 --algorithm 覆盖。
+# 算法开关（也可用 --algorithm 覆盖）
+# 已实现: ppo, q_learning, sarsa, sarsa_lambda, dyna_q, monte_carlo,
+#   value_iteration, policy_iteration, dqn, double_dqn, dueling_dqn, rainbow,
+#   reinforce, a2c, trpo, ddpg, td3, sac, mpc
+# 未实现: a3c, impala, td0（见 ALGORITHMS.md）
 algorithm: ppo
 
 env:
@@ -15,7 +18,8 @@ train:
   solved_window: 20
   save_dir: checkpoints
   log_dir: runs
-  # 权重文件名：cartpole_{algorithm}_best.* / _final.*
+  log_every: 2000
+  device: cpu
 
 ppo:
   lr: 0.0003
@@ -30,21 +34,119 @@ ppo:
   minibatch_size: 64
   device: cpu
 
-# 表格 Q-Learning：连续状态需离散化；步数通常要比 PPO 更多
-q_learning:
-  total_steps: 200000          # 若 algorithm=q_learning 且未在 CLI 指定，可用此项覆盖 train.total_steps
-  alpha: 0.1                   # 学习率
+q_learning: &tabular
+  total_steps: 200000
+  alpha: 0.1
   gamma: 0.99
   epsilon_start: 1.0
   epsilon_end: 0.02
-  epsilon_decay_steps: 100000  # 线性退火步数
-  # 每维分箱数：[x, vx, theta, omega]
+  epsilon_decay_steps: 100000
   n_bins: [8, 8, 16, 16]
-  # 离散化裁剪范围（超出则夹紧到边界箱）
   state_low: [-1.4, -3.0, -0.22, -3.5]
   state_high: [1.4, 3.0, 0.22, 3.5]
+
+sarsa: *tabular
+sarsa_lambda:
+  <<: *tabular
+  lam: 0.8
+dyna_q:
+  <<: *tabular
+  planning_steps: 10
+monte_carlo: *tabular
+value_iteration:
+  <<: *tabular
+  explore_steps: 50000
+  vi_iters: 200
+policy_iteration:
+  <<: *tabular
+  explore_steps: 50000
+
+dqn: &dqn
+  lr: 0.001
+  gamma: 0.99
+  batch_size: 64
+  buffer_size: 50000
+  start_learning: 1000
+  target_update: 500
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  epsilon_decay_steps: 50000
+  n_step: 1
+  device: cpu
+  total_steps: 100000
+
+double_dqn: *dqn
+dueling_dqn: *dqn
+rainbow:
+  <<: *dqn
+  n_step: 3
+
+reinforce:
+  lr: 0.003
+  gamma: 0.99
+  use_baseline: true
+  device: cpu
+
+a2c:
+  lr: 0.0003
+  gamma: 0.99
+  ent_coef: 0.01
+  vf_coef: 0.5
+  n_steps: 16
+  device: cpu
+
+trpo:
+  gamma: 0.99
+  max_kl: 0.01
+  damping: 0.1
+  vf_lr: 0.001
+  rollout_steps: 2048
+  device: cpu
+
+ddpg:
+  lr_actor: 0.001
+  lr_critic: 0.001
+  gamma: 0.99
+  tau: 0.005
+  noise_std: 0.1
+  batch_size: 64
+  buffer_size: 100000
+  start_learning: 1000
+  device: cpu
+  total_steps: 100000
+
+td3:
+  lr: 0.001
+  gamma: 0.99
+  tau: 0.005
+  policy_noise: 0.2
+  noise_clip: 0.5
+  exploration_noise: 0.1
+  policy_delay: 2
+  batch_size: 64
+  buffer_size: 100000
+  start_learning: 1000
+  device: cpu
+  total_steps: 100000
+
+sac:
+  lr: 0.0003
+  gamma: 0.99
+  tau: 0.005
+  alpha: 0.2
+  batch_size: 64
+  buffer_size: 100000
+  start_learning: 1000
+  device: cpu
+  total_steps: 100000
+
+mpc:
+  horizon: 8
+  n_samples: 64
+  gamma: 0.99
+  explore_steps: 5000
 
 visualize:
   port: 6008
   host: "0.0.0.0"
-  checkpoint: null             # null 表示自动选 checkpoints/cartpole_{algorithm}_best.*
+  checkpoint: null

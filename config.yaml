@@ -2,7 +2,7 @@
 # 已实现: ppo, q_learning, sarsa, sarsa_lambda, dyna_q, monte_carlo,
 #   value_iteration, policy_iteration, dqn, double_dqn, dueling_dqn, rainbow,
 #   reinforce, a2c, trpo, ddpg, td3, sac, mpc
-# 未实现: a3c, impala, td0（见 ALGORITHMS.md）
+# 未实现: a3c, impala, td0（见 docs/ALGORITHMS.md）
 algorithm: ppo
 
 env:

@@ -637,8 +637,9 @@ python visualize_mjviser.py --port 6008 --stochastic
 - MuJoCo 文档: <https://mujoco.readthedocs.io/>  
 - mjviser: <https://github.com/mujocolab/mjviser>  
 - Gymnasium: <https://gymnasium.farama.org/>  
-- 本机短说明: `/root/autodl-tmp/cartpole_rl/README.md`  
-- 环境安装篇: `/root/autodl-tmp/MuJoCo_mjviser_安装教程.md`
+- 本机短说明: [README.md](../README.md)  
+- 环境安装篇: [MuJoCo_mjviser_安装教程.md](./MuJoCo_mjviser_安装教程.md)  
+- 多算法说明: [ALGORITHMS.md](./ALGORITHMS.md)
 
 ---
 

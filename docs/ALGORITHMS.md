@@ -266,7 +266,7 @@ Q(s,a)=V(s)+A(s,a)-\frac{1}{|\mathcal A|}\sum_{a'}A(s,a')
 
 **类别：** 同策略 · Actor-Critic  
 
-**思想：** 用概率比 \(r_t(\theta)=\pi_\theta/\pi_{\mathrm{old}}\) 的 **Clip** 目标限制更新幅度；配合 **GAE** 估优势。详见教程 `CartPole_PPO_手把手教程.md` §1。
+**思想：** 用概率比 \(r_t(\theta)=\pi_\theta/\pi_{\mathrm{old}}\) 的 **Clip** 目标限制更新幅度；配合 **GAE** 估优势。详见教程 [CartPole_PPO_手把手教程.md](./CartPole_PPO_手把手教程.md) §1。
 
 \[
 L^{\mathrm{CLIP}}=\mathbb{E}\big[\min(r_t\hat A_t,\mathrm{clip}(r_t,1-\varepsilon,1+\varepsilon)\hat A_t)\big]

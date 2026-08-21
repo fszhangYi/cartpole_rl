@@ -152,8 +152,15 @@ class PPO:
 
         return {k: v / max(n_updates, 1) for k, v in metrics.items()}
 
+    def select_action(self, obs: np.ndarray, greedy: bool = False) -> int:
+        """统一 Agent 接口：供 evaluate / visualize 复用。"""
+        if greedy:
+            return self.net.greedy(obs)
+        action, _, _ = self.net.act(obs)
+        return action
+
     def save(self, path: str) -> None:
-        torch.save({"model": self.net.state_dict()}, path)
+        torch.save({"model": self.net.state_dict(), "algorithm": "ppo"}, path)
 
     def load(self, path: str) -> None:
         ckpt = torch.load(path, map_location=self.device, weights_only=True)

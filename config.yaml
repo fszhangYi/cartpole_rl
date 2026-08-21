@@ -1,0 +1,50 @@
+# 强化学习算法开关：ppo | q_learning
+# 修改本项即可切换算法；也可用命令行 --algorithm 覆盖。
+algorithm: ppo
+
+env:
+  max_episode_steps: 500
+  angle_threshold_deg: 12.0
+  x_threshold: 1.4
+  force_mag: 1.0
+
+train:
+  seed: 42
+  total_steps: 80000
+  solved_reward: 475.0
+  solved_window: 20
+  save_dir: checkpoints
+  log_dir: runs
+  # 权重文件名：cartpole_{algorithm}_best.* / _final.*
+
+ppo:
+  lr: 0.0003
+  rollout_steps: 2048
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_eps: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  update_epochs: 10
+  minibatch_size: 64
+  device: cpu
+
+# 表格 Q-Learning：连续状态需离散化；步数通常要比 PPO 更多
+q_learning:
+  total_steps: 200000          # 若 algorithm=q_learning 且未在 CLI 指定，可用此项覆盖 train.total_steps
+  alpha: 0.1                   # 学习率
+  gamma: 0.99
+  epsilon_start: 1.0
+  epsilon_end: 0.02
+  epsilon_decay_steps: 100000  # 线性退火步数
+  # 每维分箱数：[x, vx, theta, omega]
+  n_bins: [8, 8, 16, 16]
+  # 离散化裁剪范围（超出则夹紧到边界箱）
+  state_low: [-1.4, -3.0, -0.22, -3.5]
+  state_high: [1.4, 3.0, 0.22, 3.5]
+
+visualize:
+  port: 6008
+  host: "0.0.0.0"
+  checkpoint: null             # null 表示自动选 checkpoints/cartpole_{algorithm}_best.*

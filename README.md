@@ -1,8 +1,8 @@
 # MuJoCo 平衡车（CartPole）强化学习
 
-经典倒立摆 / 平衡车：小车左右施力，保持杆竖直。物理用 **MuJoCo**，算法为 **PPO**，可视化用 **mjviser**。
+经典倒立摆 / 平衡车：物理 **MuJoCo**，算法由 **`config.yaml`** 选择（**PPO** 或 **Q-Learning**），可视化 **mjviser**。
 
-**详细教程（含 PPO 算法讲解）：** `./CartPole_PPO_手把手教程.md`
+**详细教程：** [CartPole_PPO_手把手教程.md](./CartPole_PPO_手把手教程.md)
 
 ## 环境
 
@@ -10,59 +10,65 @@
 source /root/miniconda3/etc/profile.d/conda.sh
 conda activate /root/autodl-tmp/conda-envs/mjviser
 cd /root/autodl-tmp/cartpole_rl
+pip install pyyaml   # 若尚未安装
 ```
 
-依赖（若尚未安装）：`mujoco`、`mjviser`、`gymnasium`、`torch`（CPU 即可）。
+## 用配置切换算法（推荐）
+
+编辑 `config.yaml` 顶部：
+
+```yaml
+algorithm: ppo         # 或 q_learning
+```
+
+大改动集中在代码里的 **`match/case`**（类似 switch）：
+
+| 位置 | 作用 |
+| --- | --- |
+| `algorithms/factory.py` → `create_agent` | 创建 PPO / QLearningAgent |
+| `train.py` → `main` | 选择 `train_ppo` / `train_q_learning` |
+| `config_loader.py` → `resolve_checkpoint_path` | `.pt` vs `.npz` 权重后缀 |
+
+评估与可视化 **复用** 统一接口 `agent.select_action(obs, greedy=...)`，不再写死 PPO。
+
+```bash
+# 按配置训练
+python train.py --config config.yaml
+
+# 命令行覆盖算法（不改文件）
+python train.py --algorithm ppo
+python train.py --algorithm q_learning
+
+# 评估 / 可视化（默认读 config 里的 algorithm 与对应权重）
+python evaluate.py --greedy
+python visualize_mjviser.py --port 6008
+```
+
+权重命名：`checkpoints/cartpole_{algorithm}_best.pt|.npz`。
 
 ## 任务设定
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | `[x, vx, θ, ω]` 小车位置/速度、杆角/角速度（θ=0 为竖直） |
-| 动作 | 离散 2：向左 / 向右恒力 |
-| 奖励 | 杆未倒且小车未出轨：每步 +1 |
+| 状态 | `[x, vx, θ, ω]`（θ=0 为竖直） |
+| 动作 | 离散 2：左 / 右 |
+| 奖励 | 存活每步 +1 |
 | 终止 | `|θ| > 12°` 或 `|x| > 1.4`，或满 500 步 |
-| 模型 | `assets/cartpole.xml` |
-
-## 训练
-
-```bash
-python train.py --total-steps 80000
-```
-
-达标：最近 20 局平均回报 ≥ 475 时提前结束。权重写入：
-
-- `checkpoints/cartpole_ppo_best.pt`
-- `checkpoints/cartpole_ppo_final.pt`
-- `runs/train_history.json`
-
-## 评估（无界面）
-
-```bash
-python evaluate.py --checkpoint checkpoints/cartpole_ppo_best.pt --episodes 20 --greedy
-```
-
-期望：多数回合回报接近 **500**。
-
-## mjviser 可视化（默认端口 6008）
-
-```bash
-python visualize_mjviser.py --port 6008
-```
-
-浏览器打开 `http://localhost:6008`（AutoDL 映射自定义服务端口 **6008**）。  
-页面可 Pause / Reset / 调速；策略默认贪婪（argmax）。
 
 ## 目录
 
 ```text
 cartpole_rl/
-  assets/cartpole.xml      # MuJoCo 模型
-  env.py                   # Gymnasium 环境
-  ppo.py                   # PPO Actor-Critic
-  train.py                 # 训练
-  evaluate.py              # 评估
-  visualize_mjviser.py     # 网页可视化
-  checkpoints/             # 策略权重
-  runs/                    # 训练曲线 JSON
+  config.yaml              # 算法与超参
+  config_loader.py         # 加载 / 规范化算法名
+  algorithms/              # ★ 算法包（可插拔）
+    __init__.py
+    base.py                # Agent 协议
+    factory.py             # match/case 创建智能体
+    ppo.py
+    qlearning.py
+  env.py / assets/         # 环境（算法无关，复用）
+  train.py                 # match/case 训练入口
+  evaluate.py / visualize_mjviser.py
+  checkpoints/ runs/
 ```

@@ -111,7 +111,7 @@ CartPole 的「学得好」很直观：杆不倒、车不出轨的步数尽量�
 \hat{A}_t \approx \text{（对未来回报的估计）} - V_\phi(s_t)
 \]
 
-本仓库网络结构（`ppo.py` → `ActorCritic`）：
+本仓库网络结构（`algorithms/ppo.py` → `ActorCritic`）：
 
 | 头 | 输出 | 作用 |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ L^{\text{CLIP}}(\theta)
 
 优化时我们 **最大化** \(L^{\text{CLIP}}\)；代码里写成最小化 `-min(...)`，即 `policy_loss`。
 
-对应实现（概念对齐 `ppo.py` 的 `update`）：
+对应实现（概念对齐 `algorithms/ppo.py` 的 `update`）：
 
 ```text
 ratio   = exp(new_logprob - old_logprob)
@@ -321,24 +321,59 @@ PPO 属于 **on-policy**：用来更新的数据必须来自 **当前（或刚�
 
 ```text
 /root/autodl-tmp/cartpole_rl/
-  assets/cartpole.xml       # MuJoCo 模型
-  env.py                    # 环境
-  ppo.py                    # ActorCritic + PPO-Clip + GAE
-  train.py                  # 训练与早停
-  evaluate.py               # 无界面评估
-  visualize_mjviser.py      # 策略 + mjviser，默认端口 6008
-  checkpoints/              # *.pt 权重
-  runs/train_history.json   # 训练曲线
-  README.md                 # 短说明
+  config.yaml                 # ★ 算法开关与超参（algorithm: ppo | q_learning）
+  config_loader.py            # 加载 YAML、规范化算法名、解析权重路径
+  algorithms/                 # ★ 算法包（PPO / Q-Learning 等）
+    __init__.py               # 对外导出 create_agent / PPO / QLearningAgent
+    base.py                   # Agent 协议：select_action / save / load
+    factory.py                # match/case 创建智能体
+    ppo.py                    # PPO 实现 + select_action
+    qlearning.py              # 表格 Q-Learning（状态离散化）
+  assets/cartpole.xml         # MuJoCo 模型（算法无关，复用）
+  env.py                      # 环境（算法无关，复用）
+  train.py                    # ★ match/case 选择 train_ppo / train_q_learning
+  evaluate.py                 # 统一评估入口
+  visualize_mjviser.py        # 统一可视化（默认 6008）
+  checkpoints/                # cartpole_{algorithm}_best.pt|.npz
+  runs/                       # train_history_{algorithm}.json
+  README.md
 ```
 
-与 §1 的对应关系：
+与算法相关的「大改动」只集中在带 ★ 的文件与 `algorithms/` 包；`env` / 评估可视化通过 **`Agent.select_action`** 复用。
 
-- GAE / Clip / 熵 → `ppo.py`  
-- Rollout 循环、早停、存盘 → `train.py`  
-- `step_fn` 里用策略写 `ctrl` 再步进 → `visualize_mjviser.py`
+### 3.1 配置切换算法 + match/case（重要）
 
-**全部源码（含逐段中文注释）见文末 [附录 A](#附录-a-本项目全部源码附中文注释)。**
+编辑 `config.yaml`：
+
+```yaml
+algorithm: ppo          # 改成 q_learning 即切换
+```
+
+或命令行覆盖（不改文件）：
+
+```bash
+python train.py --algorithm ppo
+python train.py --algorithm q_learning
+```
+
+训练入口中的分支结构（Python 3.10+ `match/case`，等价于 switch）：
+
+```python
+match cfg["algorithm"]:
+    case "ppo":
+        history, best_avg = train_ppo(env, agent, cfg, total_steps, seed)
+    case "q_learning":
+        history, best_avg = train_q_learning(env, agent, cfg, total_steps, seed)
+    case _:
+        raise ValueError(cfg["algorithm"])
+```
+
+工厂同样用 match/case 构造智能体（`algorithms.factory.create_agent`），避免在 `evaluate` / `visualize` 里复制算法细节。
+
+| 算法 | 训练特点 | 权重后缀 |
+| --- | --- | --- |
+| **ppo** | On-policy：rollout → GAE → Clip 更新 | `.pt` |
+| **q_learning** | Off-policy：每步 TD 更新 Q 表（连续状态分箱） | `.npz` |
 
 ---
 
@@ -361,7 +396,7 @@ unset REQUESTS_CA_BUNDLE SSL_CERT_FILE
 
 # CartPole 很小，CPU 版 torch 足够
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install gymnasium
+pip install gymnasium pyyaml
 ```
 
 验收：
@@ -379,27 +414,32 @@ EOF
 
 ```bash
 cd /root/autodl-tmp/cartpole_rl
-ls assets/cartpole.xml env.py ppo.py train.py evaluate.py visualize_mjviser.py
+ls assets/cartpole.xml env.py algorithms/ppo.py train.py evaluate.py visualize_mjviser.py
 ```
 
 ---
 
 ## 5. 训练
 
+默认读取 `config.yaml` 的 `algorithm`（也可用 `--algorithm` 覆盖）：
+
 ```bash
 cd /root/autodl-tmp/cartpole_rl
-python train.py --total-steps 80000 --seed 42
+python train.py --config config.yaml --seed 42
+python train.py --algorithm ppo
+python train.py --algorithm q_learning
+# 可选覆盖步数：
+python train.py --algorithm ppo --total-steps 80000
 ```
 
 常用参数：
 
 | 参数 | 含义 |
 | --- | --- |
-| `--total-steps` | 最大环境交互步数上限 |
-| `--rollout-steps` | 每次 PPO 更新前采集步数（默认 2048） |
-| `--solved-reward` | 早停阈值（默认 475） |
-| `--solved-window` | 用最近多少局均值判断达标（默认 20） |
-| `--device` | 默认 `cpu` |
+| `--config` | YAML 配置路径（默认 `config.yaml`） |
+| `--algorithm` | `ppo` / `q_learning`，覆盖配置文件 |
+| `--total-steps` | 最大环境交互步数（Q-Learning 默认可在 yaml 的 `q_learning.total_steps`） |
+| `--seed` | 随机种子 |
 
 ### 5.1 日志怎么读
 
@@ -523,16 +563,17 @@ python visualize_mjviser.py --port 6008 --stochastic
 
 | 概念（§1） | 代码位置 |
 | --- | --- |
-| \(\pi_\theta\) / \(V_\phi\) | `ppo.py` → `ActorCritic` |
+| \(\pi_\theta\) / \(V_\phi\) | `algorithms/ppo.py` → `ActorCritic` |
 | 采样 \(a,\log\pi,V\) | `ActorCritic.act` |
 | GAE | `PPO.compute_gae` |
 | \(r_t(\theta)\) 与 Clip | `PPO.update` 中 `ratio` / `clamp` / `min` |
 | 熵奖励 | `- ent_coef * entropy` |
-| Rollout + 多 epoch | `train.py` 主循环 |
+| Rollout + 多 epoch | `train.py` → `train_ppo` |
 | 环境转移与奖励 | `env.py` → `CartPoleMuJoCoEnv.step` |
+| 算法工厂 | `algorithms/factory.py`（match/case） |
 | 部署 | `visualize_mjviser.py` → `step_fn` |
 
-建议阅读顺序：`env.py` → `ppo.py`（对照 §1.5–1.7）→ `train.py` → `evaluate.py` → `visualize_mjviser.py`。
+建议阅读顺序：`env.py` → `algorithms/ppo.py`（对照 §1.5–1.7）→ `algorithms/qlearning.py` → `train.py` → `evaluate.py` → `visualize_mjviser.py`。
 
 ---
 
@@ -613,10 +654,11 @@ python visualize_mjviser.py --port 6008 --stochastic
 | --- | --- |
 | A.1 | `assets/cartpole.xml` |
 | A.2 | `env.py` |
-| A.3 | `ppo.py` |
+| A.3 | `algorithms/ppo.py` |
 | A.4 | `train.py` |
 | A.5 | `evaluate.py` |
 | A.6 | `visualize_mjviser.py` |
+| A.8 | `algorithms/qlearning.py` / `algorithms/factory.py`（见包内源文件） |
 
 ---
 
@@ -826,7 +868,7 @@ def make_env(seed: Optional[int] = None, **kwargs) -> CartPoleMuJoCoEnv:
 
 ---
 
-### A.3 `ppo.py` — Actor-Critic 与 PPO-Clip
+### A.3 `algorithms/ppo.py` — Actor-Critic 与 PPO-Clip
 
 ```python
 """面向离散 CartPole 的精简 PPO（Actor-Critic + Clip + GAE）。对照教程 §1。"""
@@ -1035,7 +1077,7 @@ import numpy as np
 import torch
 
 from env import CartPoleMuJoCoEnv
-from ppo import PPO, RolloutBatch
+from algorithms import PPO, RolloutBatch
 
 ROOT = Path(__file__).resolve().parent
 
@@ -1205,7 +1247,7 @@ from pathlib import Path
 import numpy as np
 
 from env import CartPoleMuJoCoEnv
-from ppo import PPO
+from algorithms import PPO
 
 ROOT = Path(__file__).resolve().parent
 
@@ -1277,7 +1319,7 @@ import viser
 from mjviser import Viewer
 
 from env import DEFAULT_XML, CartPoleMuJoCoEnv
-from ppo import PPO
+from algorithms import PPO
 
 ROOT = Path(__file__).resolve().parent
 

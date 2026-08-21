@@ -72,63 +72,65 @@ kill <pid>    # 不行再用 kill -9 <pid>
 
 ### 1.1 强化学习最小记号
 
-智能体与环境交互：在状态 \(s_t\) 选动作 \(a_t\)，得奖励 \(r_t\)，进入 \(s_{t+1}\)。
+智能体与环境交互：在状态 $`s_t`$ 选动作 $`a_t`$，得奖励 $`r_t`$，进入 $`s_{t+1}`$。
 
-- **策略** \(\pi_\theta(a|s)\)：参数 \(\theta\) 的条件分布（本教程：离散左右两动作的分类器）。  
+- **策略** $`\pi_\theta(a|s)`$：参数 $`\theta`$ 的条件分布（本教程：离散左右两动作的分类器）。  
 - **回报（Return）**  
-  \[
-  G_t = r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \cdots
-  \]
-  \(\gamma\in(0,1]\) 为折扣因子（本仓库默认 `gamma=0.99`）。  
-- **目标**：最大化期望回报 \(\mathbb{E}_{\tau\sim\pi_\theta}[\sum_t \gamma^t r_t]\)。
+  
+```math
+G_t = r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \cdots
+```
+
+  $`\gamma\in(0,1]`$ 为折扣因子（本仓库默认 `gamma=0.99`）。  
+- **目标**：最大化期望回报 $`\mathbb{E}_{\tau\sim\pi_\theta}[\sum_t \gamma^t r_t]`$。
 
 CartPole 的「学得好」很直观：杆不倒、车不出轨的步数尽量多 → 每步 +1，满局 500。
 
 ### 1.2 为什么需要「策略梯度」而不是监督学习
 
-没有现成的「正确答案动作标签」。只有标量奖励。策略梯度用 **似然比技巧** 把目标对 \(\theta\) 求导，核心形式（REINFORCE）：
+没有现成的「正确答案动作标签」。只有标量奖励。策略梯度用 **似然比技巧** 把目标对 $`\theta`$ 求导，核心形式（REINFORCE）：
 
-\[
+```math
 \nabla_\theta J(\theta)
 \approx
 \mathbb{E}_t\Bigl[
 \nabla_\theta \log \pi_\theta(a_t|s_t)\, \hat{A}_t
 \Bigr]
-\]
+```
 
 直觉：
 
-- \(\hat{A}_t > 0\)：这次动作比「平均预期」好 → 增大该动作概率；  
-- \(\hat{A}_t < 0\)：比预期差 → 减小概率。
+- $`\hat{A}_t > 0`$：这次动作比「平均预期」好 → 增大该动作概率；  
+- $`\hat{A}_t < 0`$：比预期差 → 减小概率。
 
-\(\hat{A}_t\) 叫 **优势（Advantage）**：相对「基准」好多少，而不是原始回报本身。用优势通常比用 raw return 方差更小。
+$`\hat{A}_t`$ 叫 **优势（Advantage）**：相对「基准」好多少，而不是原始回报本身。用优势通常比用 raw return 方差更小。
 
 ### 1.3 Actor-Critic：策略 + 价值网络
 
-纯 REINFORCE 用整条轨迹的 \(G_t\) 当信号，方差大、样本效率差。Actor-Critic 引入 **评论家（Critic）** \(V_\phi(s)\) 估计状态价值：
+纯 REINFORCE 用整条轨迹的 $`G_t`$ 当信号，方差大、样本效率差。Actor-Critic 引入 **评论家（Critic）** $`V_\phi(s)`$ 估计状态价值：
 
-\[
+```math
 \hat{A}_t \approx \text{（对未来回报的估计）} - V_\phi(s_t)
-\]
+```
 
 本仓库网络结构（`algorithms/ppo.py` → `ActorCritic`）：
 
 | 头 | 输出 | 作用 |
 | --- | --- | --- |
-| **Actor** | 两维 logits → `Categorical` | \(\pi_\theta(a\|s)\)，采样或 argmax |
-| **Critic** | 标量 \(V(s)\) | 估价值，构造优势与 value loss |
+| **Actor** | 两维 logits → `Categorical` | $`\pi_\theta(a\|s)`$，采样或 argmax |
+| **Critic** | 标量 $`V(s)`$ | 估价值，构造优势与 value loss |
 
 两套 MLP（64-64），正交初始化；Actor 最后一层用很小 `std=0.01`，避免一开始策略过于尖锐。
 
 ### 1.4 从 TRPO 到 PPO：信任域思想
 
-朴素策略梯度有个致命问题：**一次更新步子太大**，新策略 \(\pi_{\theta_{\text{new}}}\) 相对旧策略 \(\pi_{\theta_{\text{old}}}\) 偏离过远时：
+朴素策略梯度有个致命问题：**一次更新步子太大**，新策略 $`\pi_{\theta_{\text{new}}}`$ 相对旧策略 $`\pi_{\theta_{\text{old}}}`$ 偏离过远时：
 
 - 重要性采样比率失真；  
 - 性能可能「悬崖式」崩溃，再难爬回来。
 
 **TRPO**（Trust Region Policy Optimization）用约束  
-\(\mathbb{E}[\mathrm{KL}(\pi_{\text{old}}\|\pi_{\text{new}})] \le \delta\)  
+$`\mathbb{E}[\mathrm{KL}(\pi_{\text{old}}\|\pi_{\text{new}})] \le \delta`$  
 限制更新幅度，理论漂亮但实现重（共轭梯度、二阶信息）。
 
 **PPO** 用更简单的一阶方法近似同一思想，工业界极常用。最流行的是 **Clipped Surrogate Objective（Clip 目标）**。
@@ -137,25 +139,25 @@ CartPole 的「学得好」很直观：杆不倒、车不出轨的步数尽量�
 
 定义 **概率比（probability ratio）**：
 
-\[
+```math
 r_t(\theta)
 =
 \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}
 =
 \exp\bigl(\log\pi_\theta - \log\pi_{\theta_{\text{old}}}\bigr)
-\]
+```
 
 未裁剪的替代目标（类似重要性加权的策略梯度）：
 
-\[
+```math
 L^{\text{CPI}}(\theta)
 =
 \mathbb{E}_t\bigl[r_t(\theta)\,\hat{A}_t\bigr]
-\]
+```
 
 PPO 将其改成 **裁剪版**：
 
-\[
+```math
 L^{\text{CLIP}}(\theta)
 =
 \mathbb{E}_t\Bigl[
@@ -164,18 +166,18 @@ L^{\text{CLIP}}(\theta)
   \mathrm{clip}\bigl(r_t(\theta),\,1-\varepsilon,\,1+\varepsilon\bigr)\hat{A}_t
 \bigr)
 \Bigr]
-\]
+```
 
-本仓库 `clip_eps = 0.2`，即 \(\varepsilon=0.2\)，比率被限制在 \([0.8,\,1.2]\)。
+本仓库 `clip_eps = 0.2`，即 $`\varepsilon=0.2`$，比率被限制在 $`[0.8,\,1.2]`$。
 
-**怎么读这个 \(\min\)：**
+**怎么读这个 $`\min`$：**
 
 | 情况 | 行为 |
 | --- | --- |
-| \(\hat{A}_t>0\)（好动作） | 希望增大 \(r_t\)；但超过 \(1+\varepsilon\) 后目标不再上升 → **防止概率涨太猛** |
-| \(\hat{A}_t<0\)（坏动作） | 希望减小 \(r_t\)；裁剪同样限制一步砍得太狠 |
+| $`\hat{A}_t>0`$（好动作） | 希望增大 $`r_t`$；但超过 $`1+\varepsilon`$ 后目标不再上升 → **防止概率涨太猛** |
+| $`\hat{A}_t<0`$（坏动作） | 希望减小 $`r_t`$；裁剪同样限制一步砍得太狠 |
 
-优化时我们 **最大化** \(L^{\text{CLIP}}\)；代码里写成最小化 `-min(...)`，即 `policy_loss`。
+优化时我们 **最大化** $`L^{\text{CLIP}}`$；代码里写成最小化 `-min(...)`，即 `policy_loss`。
 
 对应实现（概念对齐 `algorithms/ppo.py` 的 `update`）：
 
@@ -188,37 +190,37 @@ policy_loss = -mean( min(surr1, surr2) )
 
 ### 1.6 优势估计：GAE（Generalized Advantage Estimation）
 
-直接用 \(G_t - V(s_t)\) 可以，但偏置/方差不好折中。本仓库用 **GAE-λ**（`gae_lambda=0.95`）：
+直接用 $`G_t - V(s_t)`$ 可以，但偏置/方差不好折中。本仓库用 **GAE-λ**（`gae_lambda=0.95`）：
 
 先定义 TD 残差：
 
-\[
+```math
 \delta_t = r_t + \gamma V(s_{t+1})(1-d_t) - V(s_t)
-\]
+```
 
-（\(d_t=1\) 表示 episode 结束，下一状态价值置 0。）
+（$`d_t=1`$ 表示 episode 结束，下一状态价值置 0。）
 
 再递推：
 
-\[
+```math
 \hat{A}_t = \delta_t + \gamma\lambda(1-d_t)\hat{A}_{t+1}
-\]
+```
 
-\[
+```math
 \hat{R}_t = \hat{A}_t + V(s_t)
 \quad\text{（returns，给 Critic 回归）}
-\]
+```
 
 | 超参 | 典型值 | 含义 |
 | --- | --- | --- |
-| \(\gamma\) | 0.99 | 更重视长期；CartPole 需要撑很多步 |
-| \(\lambda\) | 0.95 | 越接近 1 越像蒙特卡洛（方差大、偏置小）；越小越像一步 TD |
+| $`\gamma`$ | 0.99 | 更重视长期；CartPole 需要撑很多步 |
+| $`\lambda`$ | 0.95 | 越接近 1 越像蒙特卡洛（方差大、偏置小）；越小越像一步 TD |
 
 更新前对 `advantages` 做 **标准化**（减均值除标准差），稳定不同 rollout 尺度。
 
 ### 1.7 完整损失：策略 + 价值 + 熵
 
-\[
+```math
 L(\theta,\phi)
 =
 \mathbb{E}\Bigl[
@@ -226,7 +228,7 @@ L(\theta,\phi)
   + c_v\,(V_\phi(s_t)-\hat{R}_t)^2
   - c_e\,H\bigl[\pi_\theta(\cdot|s_t)\bigr]
 \Bigr]
-\]
+```
 
 | 项 | 本仓库系数 | 作用 |
 | --- | --- | --- |
@@ -254,11 +256,11 @@ PPO 属于 **on-policy**：用来更新的数据必须来自 **当前（或刚�
 
 ### 1.9 离散 CartPole 上 PPO 在学什么
 
-状态 \(s=(x,\dot{x},\theta,\dot{\theta})\)。  
-动作 \(a\in\{\text{左力},\text{右力}\}\)。
+状态 $`s=(x,\dot{x},\theta,\dot{\theta})`$。  
+动作 $`a\in\{\text{左力},\text{右力}\}`$。
 
 早期：熵高，左右几乎随机，杆很快倒（回报个位数）。  
-中期：Critic 开始分清「危险倾斜」；Actor 在 \(\theta\) 偏向一侧时更常打反向力。  
+中期：Critic 开始分清「危险倾斜」；Actor 在 $`\theta`$ 偏向一侧时更常打反向力。  
 后期：策略近似「小误差反馈控制」；贪婪评估可稳定满 500 步。
 
 本机日志可见：`avgR100` 从 ~6 爬到数百，熵 `H` 从 ~0.68 降到 ~0.27（仍保留一点随机性；评估用 `--greedy` 取 argmax）。
@@ -267,7 +269,7 @@ PPO 属于 **on-policy**：用来更新的数据必须来自 **当前（或刚�
 
 | 算法 | 要点 | 相对 PPO |
 | --- | --- | --- |
-| REINFORCE | 蒙特卡洛回报 × \(\nabla\log\pi\) | 方差大，无信任域 |
+| REINFORCE | 蒙特卡洛回报 × $`\nabla\log\pi`$ | 方差大，无信任域 |
 | A2C/A3C | Actor-Critic + 多环境 | 无 clip；同步/异步变体 |
 | TRPO | KL 信任域 + 二阶 | 更重；PPO 为其实用近似 |
 | SAC / TD3 | 离策略、连续动作常用 | CartPole 离散入门不必上 |
@@ -563,10 +565,10 @@ python visualize_mjviser.py --port 6008 --stochastic
 
 | 概念（§1） | 代码位置 |
 | --- | --- |
-| \(\pi_\theta\) / \(V_\phi\) | `algorithms/ppo.py` → `ActorCritic` |
-| 采样 \(a,\log\pi,V\) | `ActorCritic.act` |
+| $`\pi_\theta`$ / $`V_\phi`$ | `algorithms/ppo.py` → `ActorCritic` |
+| 采样 $`a,\log\pi,V`$ | `ActorCritic.act` |
 | GAE | `PPO.compute_gae` |
-| \(r_t(\theta)\) 与 Clip | `PPO.update` 中 `ratio` / `clamp` / `min` |
+| $`r_t(\theta)`$ 与 Clip | `PPO.update` 中 `ratio` / `clamp` / `min` |
 | 熵奖励 | `- ent_coef * entropy` |
 | Rollout + 多 epoch | `train.py` → `train_ppo` |
 | 环境转移与奖励 | `env.py` → `CartPoleMuJoCoEnv.step` |
@@ -614,7 +616,7 @@ python visualize_mjviser.py --port 6008 --stochastic
 - [ ] `python evaluate.py --greedy` 平均回报接近 **500**  
 - [ ] `ss -tlnp | grep 6008` 显示 CartPole 可视化在听  
 - [ ] 浏览器打开 **6008** 能看到小车维持杆平衡  
-- [ ] （可选）能口述 PPO-Clip 中 \(r_t(\theta)\)、\(\varepsilon\)、GAE、熵项各自的作用（§1）
+- [ ] （可选）能口述 PPO-Clip 中 $`r_t(\theta)`$、$`\varepsilon`$、GAE、熵项各自的作用（§1）
 
 全部勾选即完成本教程。
 
@@ -749,7 +751,6 @@ DEFAULT_XML = ASSET_DIR / "cartpole.xml"
 CART_POS, POLE_ANGLE = 0, 1
 CART_VEL, POLE_ANGVEL = 0, 1
 
-
 class CartPoleMuJoCoEnv(gym.Env):
     """经典 CartPole，物理由 MuJoCo 积分。
 
@@ -858,7 +859,6 @@ class CartPoleMuJoCoEnv(gym.Env):
             self._renderer.close()
             self._renderer = None
 
-
 def make_env(seed: Optional[int] = None, **kwargs) -> CartPoleMuJoCoEnv:
     """工厂函数：可选地用 seed 做一次 reset。"""
     env = CartPoleMuJoCoEnv(**kwargs)
@@ -885,13 +885,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Categorical
 
-
 def layer_init(layer: nn.Linear, std: float = np.sqrt(2), bias_const: float = 0.0) -> nn.Linear:
     """正交初始化权重（RL 里常见，利于训练稳定）。"""
     nn.init.orthogonal_(layer.weight, std)
     nn.init.constant_(layer.bias, bias_const)
     return layer
-
 
 class ActorCritic(nn.Module):
     """共享观测、分叉为策略头与价值头。"""
@@ -934,7 +932,6 @@ class ActorCritic(nn.Module):
             logits = self.actor(torch.as_tensor(obs, dtype=torch.float32))
             return int(torch.argmax(logits).item())
 
-
 @dataclass
 class RolloutBatch:
     """一次 rollout 收集、并算好 advantage/return 后的训练批次。"""
@@ -947,7 +944,6 @@ class RolloutBatch:
     values: torch.Tensor     # 旧 Critic 的 V(s)
     advantages: torch.Tensor
     returns: torch.Tensor    # advantage + value，给 Critic 回归
-
 
 class PPO:
     def __init__(
@@ -1082,7 +1078,6 @@ from algorithms import PPO, RolloutBatch
 
 ROOT = Path(__file__).resolve().parent
 
-
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Train PPO CartPole with MuJoCo")
     p.add_argument("--total-steps", type=int, default=80_000)   # 环境步上限
@@ -1096,7 +1091,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--solved-reward", type=float, default=475.0)
     p.add_argument("--solved-window", type=int, default=20)
     return p.parse_args()
-
 
 def main() -> None:
     args = parse_args()
@@ -1227,7 +1221,6 @@ def main() -> None:
     print(f"Saved best  → {args.save_dir / 'cartpole_ppo_best.pt'} (avgR={best_avg:.1f})")
     print(f"History     → {log_path}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -1252,7 +1245,6 @@ from algorithms import PPO
 
 ROOT = Path(__file__).resolve().parent
 
-
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument(
@@ -1264,7 +1256,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--greedy", action="store_true", help="使用 argmax，方差更小，适合验收")
     return p.parse_args()
-
 
 def main() -> None:
     args = parse_args()
@@ -1293,7 +1284,6 @@ def main() -> None:
         f"min={np.min(returns):.0f}  max={np.max(returns):.0f}"
     )
     env.close()
-
 
 if __name__ == "__main__":
     main()
@@ -1324,7 +1314,6 @@ from algorithms import PPO
 
 ROOT = Path(__file__).resolve().parent
 
-
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Visualize CartPole PPO with mjviser")
     p.add_argument(
@@ -1341,7 +1330,6 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--seed", type=int, default=0)
     return p.parse_args()
-
 
 def main() -> None:
     args = parse_args()
@@ -1389,7 +1377,6 @@ def main() -> None:
     server = viser.ViserServer(host=args.host, port=args.port)
     print(f"mjviser CartPole → http://localhost:{args.port}")
     Viewer(model, data, server=server, step_fn=step_fn, reset_fn=reset_fn).run()
-
 
 if __name__ == "__main__":
     main()
